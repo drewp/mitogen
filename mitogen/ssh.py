@@ -39,12 +39,13 @@ except ImportError:
     from pipes import quote as shlex_quote
 
 import mitogen.parent
+from mitogen.core import b
 
 
 LOG = logging.getLogger('mitogen')
 
-PASSWORD_PROMPT = 'password:'
-PERMDENIED_PROMPT = 'permission denied'
+PASSWORD_PROMPT = b('password:')
+PERMDENIED_PROMPT = b('permission denied')
 
 
 class PasswordError(mitogen.core.StreamError):
@@ -133,7 +134,7 @@ class Stream(mitogen.parent.Stream):
 
         for buf in it:
             LOG.debug('%r: received %r', self, buf)
-            if buf.endswith('EC0\n'):
+            if buf.endswith(self.EC0_MARKER):
                 self._ec0_received()
                 return
             elif PERMDENIED_PROMPT in buf.lower():

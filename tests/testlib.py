@@ -1,5 +1,4 @@
 
-import StringIO
 import logging
 import os
 import random
@@ -7,13 +6,22 @@ import re
 import socket
 import sys
 import time
-import urlparse
 
 import unittest2
 
 import mitogen.core
 import mitogen.master
 import mitogen.utils
+
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 if mitogen.is_master:  # TODO: shouldn't be necessary.
     import docker
@@ -29,7 +37,7 @@ def data_path(suffix):
     path = os.path.join(DATA_DIR, suffix)
     if path.endswith('.key'):
         # SSH is funny about private key permissions.
-        os.chmod(path, 0600)
+        os.chmod(path, int('0600', 8))
     return path
 
 
@@ -88,7 +96,8 @@ def wait_for_port(
 
         try:
             sock.shutdown(socket.SHUT_RDWR)
-        except socket.error, e:
+        except socket.error:
+            e = sys.exc_info()[1]
             # On Mac OS X - a BSD variant - the above code only succeeds if the operating system thinks that the
             # socket is still open when shutdown() is invoked. If Python is too slow and the FIN packet arrives
             # before that statement can be reached, then OS X kills the sock.shutdown() statement with:
@@ -132,7 +141,7 @@ def sync_with_broker(broker, timeout=10.0):
 
 class LogCapturer(object):
     def __init__(self, name=None):
-        self.sio = StringIO.StringIO()
+        self.sio = StringIO()
         self.logger = logging.getLogger(name)
         self.handler = logging.StreamHandler(self.sio)
         self.old_propagate = self.logger.propagate
@@ -154,9 +163,11 @@ class TestCase(unittest2.TestCase):
         raised. Can't use context manager because tests must run on Python2.4"""
         try:
             func(*args, **kwargs)
-        except exc, e:
+        except exc:
+            e = sys.exc_info()[1]
             return e
-        except BaseException, e:
+        except BaseException:
+            e = sys.exc_info()[1]
             assert 0, '%r raised %r, not %r' % (func, e, exc)
         assert 0, '%r did not raise %r' % (func, exc)
 

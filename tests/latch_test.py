@@ -1,4 +1,5 @@
 
+import sys
 import threading
 
 import unittest2
@@ -66,7 +67,8 @@ class ThreadedGetTest(testlib.TestCase):
     def _worker(self, func):
         try:
             self.results.append(func())
-        except Exception, e:
+        except Exception:
+            e = sys.exc_info()[1]
             self.results.append(None)
             self.excs.append(e)
 
@@ -171,7 +173,8 @@ class ThreadedCloseTest(testlib.TestCase):
     def _worker(self, func):
         try:
             self.results.append(func())
-        except Exception, e:
+        except Exception:
+            e = sys.exc_info()[1]
             self.results.append(None)
             self.excs.append(e)
 

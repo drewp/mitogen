@@ -46,9 +46,9 @@ import weakref
 import zlib
 
 try:
-    import cPickle
+    import cPickle as pickle
 except ImportError:
-    import pickle as cPickle
+    import pickle
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -78,9 +78,14 @@ LOAD_MODULE = 107
 
 PY3 = sys.version_info > (3,)
 if PY3:
-    b = lambda s: s.encode('latin-1')
+    b = str.encode
+    BytesType = bytes
 else:
     b = str
+    BytesType = str
+
+if sys.version_info < (2, 5):
+    next = lambda it: it.next()
 
 CHUNK_SIZE = 131072
 _tls = threading.local()
@@ -122,7 +127,7 @@ class CallError(Error):
             Error.__init__(self, fmt)
 
     def __reduce__(self):
-        return (_unpickle_call_error, (self[0],))
+        return (_unpickle_call_error, (self.args[0],))
 
 
 def _unpickle_call_error(s):
@@ -231,9 +236,9 @@ def io_op(func, *args):
         except (select.error, OSError):
             e = sys.exc_info()[1]
             _vv and IOLOG.debug('io_op(%r) -> OSError: %s', func, e)
-            if e[0] == errno.EINTR:
+            if e.args[0] == errno.EINTR:
                 continue
-            if e[0] in (errno.EIO, errno.ECONNRESET, errno.EPIPE):
+            if e.args[0] in (errno.EIO, errno.ECONNRESET, errno.EPIPE):
                 return None, True
             raise
 
@@ -298,13 +303,25 @@ def enable_profiling():
                 fp.close()
 
 
+if PY3:
+    # In 3.x Unpickler is a class exposing find_class as an overridable, but it
+    # cannot be overridden without subclassing.
+    class _Unpickler(pickle.Unpickler):
+        def find_class(self, module, func):
+            return self.find_global(module, func)
+else:
+    # In 2.x Unpickler is a function exposing a writeable find_global
+    # attribute.
+    _Unpickler = pickle.Unpickler
+
+
 class Message(object):
     dst_id = None
     src_id = None
     auth_id = None
     handle = None
     reply_to = None
-    data = ''
+    data = b('')
     _unpickled = object()
 
     router = None
@@ -314,7 +331,7 @@ class Message(object):
         self.src_id = mitogen.context_id
         self.auth_id = mitogen.context_id
         vars(self).update(kwargs)
-        assert isinstance(self.data, str)
+        assert isinstance(self.data, BytesType)
 
     def _unpickle_context(self, context_id, name):
         return _unpickle_context(self.router, context_id, name)
@@ -341,10 +358,10 @@ class Message(object):
     def pickled(cls, obj, **kwargs):
         self = cls(**kwargs)
         try:
-            self.data = cPickle.dumps(obj, protocol=2)
-        except cPickle.PicklingError:
+            self.data = pickle.dumps(obj, protocol=2)
+        except pickle.PicklingError:
             e = sys.exc_info()[1]
-            self.data = cPickle.dumps(CallError(e), protocol=2)
+            self.data = pickle.dumps(CallError(e), protocol=2)
         return self
 
     def reply(self, obj, **kwargs):
@@ -359,12 +376,8 @@ class Message(object):
         obj = self._unpickled
         if obj is Message._unpickled:
             fp = BytesIO(self.data)
-            unpickler = cPickle.Unpickler(fp)
-            try:
-                unpickler.find_global = self._find_global
-            except AttributeError:
-                unpickler.find_class = self._find_global
-
+            unpickler = _Unpickler(fp)
+            unpickler.find_global = self._find_global
             try:
                 # Must occur off the broker thread.
                 obj = unpickler.load()
@@ -882,7 +895,7 @@ class Stream(BasicStream):
             prev_start = start
             start = 0
 
-        msg.data = ''.join(bits)
+        msg.data = b('').join(bits)
         self._input_buf.appendleft(buf[prev_start+len(bit):])
         self._input_buf_len -= total_len
         self._router._async_route(msg, self)
@@ -1066,7 +1079,7 @@ class Latch(object):
             if i >= self._waking:
                 raise TimeoutError()
             self._waking -= 1
-            if rsock.recv(2) != '\x7f':
+            if rsock.recv(2) != b('\x7f'):
                 raise LatchError('internal error: received >1 wakeups')
             if e:
                 raise e
@@ -1096,10 +1109,10 @@ class Latch(object):
 
     def _wake(self, sock):
         try:
-            os.write(sock.fileno(), '\x7f')
+            os.write(sock.fileno(), b('\x7f'))
         except OSError:
             e = sys.exc_info()[1]
-            if e[0] != errno.EBADF:
+            if e.args[0] != errno.EBADF:
                 raise
 
     def __repr__(self):
@@ -1192,7 +1205,7 @@ class Waker(BasicStream):
             self.transmit_side.write(b(' '))
         except OSError:
             e = sys.exc_info()[1]
-            if e[0] != errno.EBADF:
+            if e.args[0] != errno.EBADF:
                 raise
 
 
@@ -1285,7 +1298,7 @@ class Router(object):
 
     def add_handler(self, fn, handle=None, persist=True,
                     policy=None, respondent=None):
-        handle = handle or self._last_handle.next()
+        handle = handle or next(self._last_handle)
         _vv and IOLOG.debug('%r.add_handler(%r, %r, %r)', self, fn, handle, persist)
 
         if respondent:

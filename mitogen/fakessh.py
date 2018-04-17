@@ -238,7 +238,7 @@ def exit():
 def die(msg, *args):
     if args:
         msg %= args
-    print msg
+    sys.stderr.write('%s\n' % (msg,))
     exit()
 
 
@@ -357,7 +357,7 @@ def run(dest, router, args, deadline=None, econtext=None):
         finally:
             fp.close()
 
-        os.chmod(ssh_path, 0755)
+        os.chmod(ssh_path, int('0755', 8))
         env = os.environ.copy()
         env.update({
             'PATH': '%s:%s' % (tmp_path, env.get('PATH', '')),

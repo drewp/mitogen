@@ -47,7 +47,16 @@ if not hasattr(pkgutil, 'find_loader'):
 
 import mitogen.core
 import mitogen.parent
+
+from mitogen.core import b
 from mitogen.core import LOG
+
+if mitogen.core.PY3:
+    imap = map
+    izip = zip
+else:
+    imap = itertools.imap
+    izip = itertools.izip
 
 
 RLOG = logging.getLogger('mitogen.ctx')
@@ -92,8 +101,12 @@ def scan_code_imports(co):
           `modname`.
     """
     # Yield `(op, oparg)` tuples from the code object `co`.
-    ordit = itertools.imap(ord, co.co_code)
-    nextb = ordit.next
+    if mitogen.core.PY3:
+        ordit = iter(co.co_code)
+        nextb = ordit.__next__
+    else:
+        ordit = imap(ord, co.co_code)
+        nextb = ordit.next
 
     opit = ((c, (None
                  if c < dis.HAVE_ARGUMENT else
@@ -108,7 +121,7 @@ def scan_code_imports(co):
     except StopIteration:
         return
 
-    for oparg1, oparg2, (op3, arg3) in itertools.izip(opit, opit2, opit3):
+    for oparg1, oparg2, (op3, arg3) in izip(opit, opit2, opit3):
         if op3 == IMPORT_NAME:
             op2, arg2 = oparg2
             op1, arg1 = oparg1
@@ -308,7 +321,7 @@ class LogForwarder(object):
             name = '%s.%s' % (RLOG.name, context.name)
             self._cache[msg.src_id] = logger = logging.getLogger(name)
 
-        name, level_s, s = msg.data.split('\x00', 2)
+        name, level_s, s = msg.data.split(b('\x00'), 2)
         logger.log(int(level_s), '%s: %s', name, s)
 
     def __repr__(self):
@@ -601,7 +614,7 @@ class ModuleResponder(object):
 
         if fullname == '__main__':
             source = self.neutralize_main(source)
-        compressed = zlib.compress(source, 9)
+        compressed = zlib.compress(source.encode('utf-8'), 9)
         related = [
             name
             for name in self._finder.find_related(fullname)
@@ -624,7 +637,7 @@ class ModuleResponder(object):
 
         LOG.debug('%r._on_get_module(%r)', self, msg.data)
         stream = self._router.stream_by_id(msg.src_id)
-        fullname = msg.data
+        fullname = msg.data.decode()
         if fullname in stream.sent_modules:
             LOG.warning('_on_get_module(): dup request for %r from %r',
                         fullname, stream)

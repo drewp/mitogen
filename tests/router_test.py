@@ -1,4 +1,3 @@
-import Queue
 import StringIO
 import logging
 import subprocess
@@ -9,6 +8,11 @@ import unittest2
 import testlib
 import mitogen.master
 import mitogen.utils
+
+try:
+    import Queue
+except ImportError:
+    import queue as Queue
 
 
 def ping():
