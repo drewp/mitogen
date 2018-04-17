@@ -6,17 +6,30 @@ notifications:
 language: python
 cache: pip
 
-python:
-- "2.7"
+matrix:
+  include:
+  # mitogen_tests.sh
+  - python: "2.7"
+    env: MODE=mitogen MITOGEN_TEST_DISTRO=debian
+  - python: "2.7"
+    env: MODE=mitogen MITOGEN_TEST_DISTRO=centos
+  - python: "3.6"
+    env: MODE=mitogen MITOGEN_TEST_DISTRO=debian
 
-env:
-- MODE=mitogen MITOGEN_TEST_DISTRO=debian
-- MODE=mitogen MITOGEN_TEST_DISTRO=centos
-- MODE=debops_common
-- MODE=ansible ANSIBLE_VERSION=2.4.3.0 MITOGEN_TEST_DISTRO=debian
-- MODE=ansible ANSIBLE_VERSION=2.4.3.0 MITOGEN_TEST_DISTRO=centos
-- MODE=ansible ANSIBLE_VERSION=2.5.0 MITOGEN_TEST_DISTRO=centos
-- MODE=ansible ANSIBLE_VERSION=2.5.0 MITOGEN_TEST_DISTRO=debian
+  # debops
+  - python: "2.7"
+    env: MODE=debops_common
+
+  # ansible
+  - python: "2.7"
+    env: MODE=ansible ANSIBLE_VERSION=2.4.3.0 MITOGEN_TEST_DISTRO=debian
+  - python: "2.7"
+    env: MODE=ansible ANSIBLE_VERSION=2.4.3.0 MITOGEN_TEST_DISTRO=centos
+  - python: "2.7"
+    env: MODE=ansible ANSIBLE_VERSION=2.5.0 MITOGEN_TEST_DISTRO=centos
+  - python: "2.7"
+    env: MODE=ansible ANSIBLE_VERSION=2.5.0 MITOGEN_TEST_DISTRO=debian
+
 
 install:
 - pip install -r dev_requirements.txt
