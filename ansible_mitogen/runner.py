@@ -387,6 +387,7 @@ class NewStyleRunner(ScriptRunner):
         code = self._get_code()
         mod = types.ModuleType('__main__')
         d = vars(mod)
+        d['__file__'] = '/tmp/foo'  # For ansible/modules/packaging/os/apt.py
         e = None
 
         try:
